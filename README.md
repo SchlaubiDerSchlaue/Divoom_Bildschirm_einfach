@@ -6,6 +6,7 @@ Eine Webanwendung zum Steuern des Divoom Pixoo64 LED-Displays, basierend auf der
 
 - Text senden (statisch mit TrueType-Font oder scrollend mit nativer Divoom-API)
 - Farbauswahl, Position und Schriftgröße anpassbar
+- Bilder hochladen (JPG statisch, animiertes GIF mit mehreren Frames)
 - Bildschirm ein-/ausschalten
 - Helligkeit regeln (0–100 %)
 - Kanal wechseln (Uhren, Cloud, Visualizer, Custom)
@@ -51,6 +52,7 @@ Browser öffnen: [http://localhost:5000](http://localhost:5000)
 | POST | `/api/brightness` | Helligkeit setzen (`{"level": 0–100}`) |
 | POST | `/api/screen` | Display an/aus (`{"on": true/false}`) |
 | POST | `/api/channel` | Kanal wechseln (`{"channel": "faces|cloud|visualizer|custom"}`) |
+| POST | `/api/upload-image` | Bild hochladen und anzeigen (JPG oder GIF, multipart/form-data) |
 | GET  | `/api/status` | Verbindungsstatus abfragen |
 
 ### Text-Parameter (`/api/send-text`)
@@ -76,6 +78,11 @@ Browser öffnen: [http://localhost:5000](http://localhost:5000)
 | [pixoo](https://pypi.org/project/pixoo/) | Kommunikation mit dem Gerät |
 | Flask | Web-Framework |
 | Pillow | TrueType-Text-Rendering für statischen Text |
+
+**Bild-Upload:**
+- *JPEG*: Wird serverseitig auf 64×64 px skaliert (Lanczos) und per `pixoo.draw_image()` + `pixoo.push()` übertragen.
+- *Animiertes GIF*: Alle Frames werden auf 64×64 skaliert und als neue GIF-Datei unter `static/uploads/anim.gif` gespeichert. Der Pixoo ruft die Datei dann selbst per HTTP vom Flask-Server ab (`pixoo.play_net_gif(url)`). Flask läuft daher im `threaded`-Modus, damit der asynchrone Abruf des Pixoo nicht blockiert.
+- *Nicht-animiertes GIF*: Wird wie ein JPEG als Standbild gesendet.
 
 **Text-Rendering:**
 - *Statisch*: PIL rendert den Text mit einer TrueType-Schrift in ein 64×64-Bild, das per `pixoo.draw_image()` + `pixoo.push()` übertragen wird.

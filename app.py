@@ -1,8 +1,17 @@
+import os
+import socket
+
 from flask import Flask, render_template, request, jsonify
 from pixoo import Pixoo, Channel, TextScrollDirection
 from PIL import Image, ImageDraw, ImageFont
 
 app = Flask(__name__)
+
+# Verzeichnis für temporär gespeicherte GIF-Dateien (wird vom Pixoo per HTTP abgerufen)
+UPLOAD_DIR = os.path.join(os.path.dirname(__file__), 'static', 'uploads')
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+PORT = 5000
 
 FONT_PATHS = [
     '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
@@ -30,6 +39,47 @@ def _load_font(size: int):
         except Exception:
             pass
     return ImageFont.load_default()
+
+
+def _get_lan_ip() -> str:
+    """Ermittelt die LAN-IP des Servers, damit der Pixoo die GIF-Datei abrufen kann."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('8.8.8.8', 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return '127.0.0.1'
+
+
+def _resize_and_save_gif(pil_gif: Image.Image, save_path: str) -> int:
+    """Skaliert alle Frames eines GIFs auf 64×64 und speichert es als neue Datei.
+    Gibt die Anzahl der Frames zurück."""
+    frames = []
+    durations = []
+    try:
+        while True:
+            frame = pil_gif.copy().convert('RGB').resize((64, 64), Image.LANCZOS)
+            frames.append(frame)
+            durations.append(pil_gif.info.get('duration', 100))
+            pil_gif.seek(pil_gif.tell() + 1)
+    except EOFError:
+        pass
+
+    if not frames:
+        return 0
+
+    frames[0].save(
+        save_path,
+        format='GIF',
+        save_all=True,
+        append_images=frames[1:],
+        loop=0,
+        duration=durations,
+        optimize=False,
+    )
+    return len(frames)
 
 
 def _require_pixoo():
@@ -75,7 +125,7 @@ def send_text():
         return jsonify({'success': False, 'message': 'Kein Text angegeben'}), 400
 
     color_hex = data.get('color', '#ffffff').lstrip('#')
-    color = tuple(int(color_hex[i:i+2], 16) for i in (0, 2, 4))
+    color     = tuple(int(color_hex[i:i+2], 16) for i in (0, 2, 4))
     x         = int(data.get('x', 0))
     y         = int(data.get('y', 0))
     font_size = int(data.get('font_size', 12))
@@ -83,8 +133,6 @@ def send_text():
 
     try:
         if speed > 0:
-            # Natives Divoom-Scrollen über Draw/SendHttpText
-            # font 0-7 aus Schriftgröße ableiten
             font_id = min(7, max(0, (font_size - 6) // 2))
             pixoo.send_text(
                 text,
@@ -95,7 +143,6 @@ def send_text():
                 direction=TextScrollDirection.LEFT,
             )
         else:
-            # Statischer Text: TrueType-Font via PIL, dann als Bild pushen
             font = _load_font(font_size)
             img  = Image.new('RGB', (64, 64), (0, 0, 0))
             ImageDraw.Draw(img).text((x, y), text, fill=color, font=font)
@@ -178,6 +225,54 @@ def set_channel():
         return jsonify({'success': False, 'message': str(e)})
 
 
+@app.route('/api/upload-image', methods=['POST'])
+def upload_image():
+    err = _require_pixoo()
+    if err:
+        return err
+
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'message': 'Keine Datei erhalten'}), 400
+
+    file = request.files['file']
+    ext  = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
+    if ext not in {'jpg', 'jpeg', 'gif'}:
+        return jsonify({'success': False, 'message': 'Nur JPG und GIF erlaubt'}), 400
+
+    try:
+        img = Image.open(file.stream)
+
+        # --- Animiertes GIF: auf Disk speichern, Pixoo lädt es selbst per HTTP ---
+        if img.format == 'GIF':
+            try:
+                img.seek(1)
+                is_animated = True
+                img.seek(0)
+            except EOFError:
+                is_animated = False
+
+            if is_animated:
+                gif_path = os.path.join(UPLOAD_DIR, 'anim.gif')
+                frame_count = _resize_and_save_gif(img, gif_path)
+                if frame_count == 0:
+                    return jsonify({'success': False, 'message': 'GIF enthält keine Frames'})
+
+                # Der Pixoo ruft die Datei selbst vom Flask-Server ab
+                lan_ip  = _get_lan_ip()
+                gif_url = f'http://{lan_ip}:{PORT}/static/uploads/anim.gif'
+                pixoo.play_net_gif(gif_url)
+                return jsonify({'success': True, 'message': f'GIF gesendet ({frame_count} Frames)'})
+
+        # --- Statisches Bild (JPEG oder nicht-animiertes GIF) ---
+        img_rgb = img.convert('RGB').resize((64, 64), Image.LANCZOS)
+        pixoo.draw_image(img_rgb)
+        pixoo.push()
+        return jsonify({'success': True, 'message': 'Bild gesendet'})
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
 @app.route('/api/status', methods=['GET'])
 def status():
     if pixoo is None:
@@ -189,6 +284,8 @@ if __name__ == '__main__':
     print('=' * 50)
     print('Divoom Pixoo64 Webapp  –  pixoo library')
     print('=' * 50)
-    print('http://localhost:5000')
+    print(f'http://localhost:{PORT}')
     print('=' * 50)
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # threaded=True ist nötig: der Pixoo ruft das GIF asynchron vom
+    # Flask-Server ab, während der Upload-Request noch verarbeitet wird
+    app.run(debug=True, host='0.0.0.0', port=PORT, threaded=True)

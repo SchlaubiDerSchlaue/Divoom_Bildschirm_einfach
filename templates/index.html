@@ -304,6 +304,24 @@
             </div>
         </div>
     </div>
+
+    <!-- Bild hochladen -->
+    <div class="section">
+        <div class="section-title">Bild hochladen</div>
+        <div class="input-group">
+            <label>JPG oder GIF auswählen</label>
+            <input type="file" id="imageFile" accept=".jpg,.jpeg,.gif"
+                   onchange="previewImage(this)" style="color:#cdd6f4">
+        </div>
+        <div id="imgPreviewWrap" style="display:none; margin-bottom:12px; text-align:center;">
+            <img id="imgPreview" style="max-width:100%; max-height:160px;
+                 border-radius:8px; border:1px solid #45475a; image-rendering:pixelated;">
+            <div id="imgInfo" style="font-size:0.8em; color:#6c7086; margin-top:4px;"></div>
+        </div>
+        <button class="btn-primary" onclick="uploadImage()" id="uploadBtn">
+            Auf Display senden
+        </button>
+    </div>
 </div>
 
 <div id="toast" class="toast"></div>
@@ -406,6 +424,46 @@
         if (!connected) { toast('Bitte zuerst verbinden', false); return; }
         const d = await api('/api/fill', { color: document.getElementById('fillColor').value });
         toast(d.message, d.success);
+    }
+
+    function previewImage(input) {
+        const file  = input.files[0];
+        const wrap  = document.getElementById('imgPreviewWrap');
+        const prev  = document.getElementById('imgPreview');
+        const info  = document.getElementById('imgInfo');
+        if (!file) { wrap.style.display = 'none'; return; }
+
+        const url = URL.createObjectURL(file);
+        prev.src  = url;
+        wrap.style.display = 'block';
+
+        const ext  = file.name.split('.').pop().toUpperCase();
+        const size = (file.size / 1024).toFixed(1);
+        info.textContent = `${file.name}  ·  ${ext}  ·  ${size} KB`;
+    }
+
+    async function uploadImage() {
+        if (!connected) { toast('Bitte zuerst verbinden', false); return; }
+        const fileInput = document.getElementById('imageFile');
+        const file = fileInput.files[0];
+        if (!file) { toast('Bitte zuerst eine Datei auswählen', false); return; }
+
+        const btn = document.getElementById('uploadBtn');
+        btn.textContent = 'Wird gesendet …';
+        btn.disabled    = true;
+
+        const form = new FormData();
+        form.append('file', file);
+        try {
+            const r = await fetch('/api/upload-image', { method: 'POST', body: form });
+            const d = await r.json();
+            toast(d.message, d.success);
+        } catch (e) {
+            toast('Fehler beim Upload: ' + e.message, false);
+        } finally {
+            btn.textContent = 'Auf Display senden';
+            btn.disabled    = false;
+        }
     }
 
     document.addEventListener('DOMContentLoaded', () => {
