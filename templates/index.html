@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Divoom Pixoo64 Steuerung</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 30px 20px;
+        }
+
+        .container {
+            background: #1e1e2e;
+            border-radius: 20px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+            padding: 36px;
+            max-width: 640px;
+            width: 100%;
+            color: #cdd6f4;
+        }
+
+        h1 {
+            font-size: 1.9em;
+            text-align: center;
+            color: #cba6f7;
+            margin-bottom: 4px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #6c7086;
+            font-size: 0.88em;
+            margin-bottom: 28px;
+        }
+
+        .connection-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-bottom: 24px;
+            background: #313244;
+            color: #6c7086;
+            transition: all .3s;
+        }
+        .connection-badge.connected { background: #1e3a2e; color: #a6e3a1; }
+        .connection-badge .dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #6c7086;
+        }
+        .connection-badge.connected .dot { background: #a6e3a1; }
+
+        .section {
+            margin-bottom: 24px;
+            background: #181825;
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .section-title {
+            color: #89b4fa;
+            font-size: 0.8em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 14px;
+        }
+
+        label {
+            display: block;
+            color: #a6adc8;
+            font-size: 0.85em;
+            margin-bottom: 5px;
+        }
+
+        .input-group { margin-bottom: 12px; }
+
+        input[type="text"],
+        input[type="number"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 10px 12px;
+            background: #313244;
+            border: 1px solid #45475a;
+            border-radius: 8px;
+            color: #cdd6f4;
+            font-size: 0.95em;
+            transition: border-color .2s;
+        }
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: #89b4fa;
+        }
+        textarea { resize: vertical; min-height: 72px; }
+
+        input[type="color"] {
+            width: 100%; height: 44px;
+            border: 1px solid #45475a;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #313244;
+            padding: 2px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: #cba6f7;
+        }
+
+        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+        button {
+            width: 100%;
+            padding: 11px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.92em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all .2s;
+            letter-spacing: 0.3px;
+        }
+        button:hover { filter: brightness(1.1); transform: translateY(-1px); }
+        button:active { transform: translateY(0); }
+
+        .btn-primary { background: #cba6f7; color: #1e1e2e; }
+        .btn-secondary { background: #45475a; color: #cdd6f4; }
+        .btn-danger { background: #f38ba8; color: #1e1e2e; }
+        .btn-success { background: #a6e3a1; color: #1e1e2e; }
+        .btn-warning { background: #fab387; color: #1e1e2e; }
+
+        .channel-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        .channel-btn {
+            padding: 9px 4px;
+            font-size: 0.8em;
+            font-weight: 600;
+            border-radius: 8px;
+            background: #313244;
+            color: #cdd6f4;
+            border: 1px solid #45475a;
+        }
+        .channel-btn:hover { background: #45475a; }
+        .channel-btn.active { background: #89b4fa; color: #1e1e2e; border-color: #89b4fa; }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 0.9em;
+            font-weight: 600;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all .3s;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.success { background: #a6e3a1; color: #1e1e2e; }
+        .toast.error { background: #f38ba8; color: #1e1e2e; }
+
+        details > summary {
+            cursor: pointer;
+            color: #89b4fa;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-bottom: 10px;
+            list-style: none;
+        }
+        details > summary::before { content: '▶ '; }
+        details[open] > summary::before { content: '▼ '; }
+
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .slider-row input[type="range"] { flex: 1; }
+        .slider-val {
+            min-width: 36px;
+            text-align: right;
+            font-size: 0.85em;
+            color: #cba6f7;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Pixoo64</h1>
+    <p class="subtitle">Divoom Display Steuerung</p>
+
+    <div id="connBadge" class="connection-badge">
+        <span class="dot"></span>
+        <span id="connText">Nicht verbunden</span>
+    </div>
+
+    <!-- Verbindung -->
+    <div class="section">
+        <div class="section-title">Verbindung</div>
+        <div class="input-group">
+            <label>IP-Adresse des Pixoo64</label>
+            <input type="text" id="ipInput" placeholder="z.B. 192.168.1.100">
+        </div>
+        <button class="btn-primary" onclick="connect()">Verbinden</button>
+    </div>
+
+    <!-- Display-Steuerung -->
+    <div class="section">
+        <div class="section-title">Display</div>
+        <div class="row" style="margin-bottom:14px">
+            <button class="btn-success" onclick="screenOn()">Einschalten</button>
+            <button class="btn-secondary" onclick="screenOff()">Ausschalten</button>
+        </div>
+        <div class="input-group">
+            <label>Helligkeit: <span id="brightnessVal">50</span>%</label>
+            <div class="slider-row">
+                <input type="range" id="brightness" min="0" max="100" value="50"
+                       oninput="document.getElementById('brightnessVal').textContent=this.value">
+                <span class="slider-val" id="brightnessVal2"></span>
+            </div>
+        </div>
+        <button class="btn-secondary" onclick="setBrightness()">Helligkeit setzen</button>
+    </div>
+
+    <!-- Kanal -->
+    <div class="section">
+        <div class="section-title">Kanal</div>
+        <div class="channel-grid">
+            <button class="channel-btn" onclick="setChannel('faces')" id="ch-faces">Uhren</button>
+            <button class="channel-btn" onclick="setChannel('cloud')" id="ch-cloud">Cloud</button>
+            <button class="channel-btn" onclick="setChannel('visualizer')" id="ch-visualizer">Visualizer</button>
+            <button class="channel-btn" onclick="setChannel('custom')" id="ch-custom">Custom</button>
+        </div>
+    </div>
+
+    <!-- Text senden -->
+    <div class="section">
+        <div class="section-title">Text senden</div>
+        <div class="input-group">
+            <label>Nachricht</label>
+            <textarea id="msgText" placeholder="Text eingeben..."></textarea>
+        </div>
+        <div class="input-group">
+            <label>Farbe</label>
+            <input type="color" id="textColor" value="#ffffff">
+        </div>
+
+        <details>
+            <summary>Erweiterte Einstellungen</summary>
+            <div class="row" style="margin-bottom:10px">
+                <div class="input-group">
+                    <label>Position X</label>
+                    <input type="number" id="posX" value="0" min="0" max="63">
+                </div>
+                <div class="input-group">
+                    <label>Position Y</label>
+                    <input type="number" id="posY" value="0" min="0" max="63">
+                </div>
+            </div>
+            <div class="input-group">
+                <label>Schriftgröße (px)</label>
+                <input type="number" id="fontSize" value="12" min="6" max="40">
+            </div>
+            <div class="input-group">
+                <label>Scroll-Geschwindigkeit: <span id="speedLabel">0 (statisch)</span></label>
+                <input type="range" id="scrollSpeed" value="0" min="0" max="100"
+                       oninput="document.getElementById('speedLabel').textContent = this.value == 0 ? '0 (statisch)' : this.value">
+            </div>
+        </details>
+
+        <button class="btn-primary" style="margin-top:14px" onclick="sendText()">Text senden</button>
+        <button class="btn-danger" style="margin-top:8px" onclick="clearScreen()">Bildschirm löschen</button>
+    </div>
+
+    <!-- Farbe füllen -->
+    <div class="section">
+        <div class="section-title">Vollfarbe</div>
+        <div class="row">
+            <div class="input-group">
+                <label>Farbe</label>
+                <input type="color" id="fillColor" value="#ff6600">
+            </div>
+            <div style="display:flex; align-items:flex-end;">
+                <button class="btn-warning" onclick="fillColor()">Füllen</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+    let connected = false;
+
+    window.onload = () => {
+        const ip = localStorage.getItem('pixooIP');
+        if (ip) document.getElementById('ipInput').value = ip;
+    };
+
+    function toast(msg, ok) {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.className = 'toast show ' + (ok ? 'success' : 'error');
+        clearTimeout(el._t);
+        el._t = setTimeout(() => el.classList.remove('show'), 3500);
+    }
+
+    function setConnected(val, ip) {
+        connected = val;
+        const badge = document.getElementById('connBadge');
+        const text = document.getElementById('connText');
+        badge.className = 'connection-badge' + (val ? ' connected' : '');
+        text.textContent = val ? `Verbunden – ${ip}` : 'Nicht verbunden';
+    }
+
+    async function api(endpoint, body) {
+        const r = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        return r.json();
+    }
+
+    async function connect() {
+        const ip = document.getElementById('ipInput').value.trim();
+        if (!ip) { toast('Bitte IP-Adresse eingeben', false); return; }
+        const d = await api('/api/connect', { ip });
+        if (d.success) {
+            localStorage.setItem('pixooIP', ip);
+            setConnected(true, ip);
+        } else {
+            setConnected(false);
+        }
+        toast(d.message, d.success);
+    }
+
+    async function screenOn() {
+        if (!connected) { toast('Bitte zuerst verbinden', false); return; }
+        const d = await api('/api/screen', { on: true });
+        toast(d.message, d.success);
+    }
+
+    async function screenOff() {
+        if (!connected) { toast('Bitte zuerst verbinden', false); return; }
+        const d = await api('/api/screen', { on: false });
+        toast(d.message, d.success);
+    }
+
+    async function setBrightness() {
+        if (!connected) { toast('Bitte zuerst verbinden', false); return; }
+        const level = parseInt(document.getElementById('brightness').value);
+        const d = await api('/api/brightness', { level });
+        toast(d.message, d.success);
+    }
+
+    async function setChannel(name) {
+        if (!connected) { toast('Bitte zuerst verbinden', false); return; }
+        document.querySelectorAll('.channel-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('ch-' + name).classList.add('active');
+        const d = await api('/api/channel', { channel: name });
+        toast(d.message, d.success);
+    }
+
+    async function sendText() {
+        if (!connected) { toast('Bitte zuerst verbinden', false); return; }
+        const text = document.getElementById('msgText').value.trim();
+        if (!text) { toast('Bitte Text eingeben', false); return; }
+        const d = await api('/api/send-text', {
+            text,
+            color: document.getElementById('textColor').value,
+            x: parseInt(document.getElementById('posX').value),
+            y: parseInt(document.getElementById('posY').value),
+            font_size: parseInt(document.getElementById('fontSize').value),
+            speed: parseInt(document.getElementById('scrollSpeed').value),
+        });
+        toast(d.message, d.success);
+    }
+
+    async function clearScreen() {
+        if (!connected) { toast('Bitte zuerst verbinden', false); return; }
+        const d = await api('/api/clear', {});
+        toast(d.message, d.success);
+    }
+
+    async function fillColor() {
+        if (!connected) { toast('Bitte zuerst verbinden', false); return; }
+        const d = await api('/api/fill', { color: document.getElementById('fillColor').value });
+        toast(d.message, d.success);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('msgText').addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText(); }
+        });
+    });
+</script>
+</body>
+</html>
