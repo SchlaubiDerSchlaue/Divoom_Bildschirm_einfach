@@ -1,0 +1,14 @@
+services:
+  divoom-webapp:
+    build: .
+    container_name: divoom-webapp
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - PORT=${PORT:-5000}
+      - UPLOAD_DIR=${UPLOAD_DIR:-/app/static/uploads}
+    volumes:
+      - divoom-uploads:/app/static/uploads
+
+volumes:
+  divoom-uploads:
