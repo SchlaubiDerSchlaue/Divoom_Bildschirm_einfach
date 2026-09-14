@@ -2,7 +2,7 @@ import os
 import socket
 
 from flask import Flask, render_template, request, jsonify
-from pixoo import Pixoo, Channel, TextScrollDirection
+from pixoo import Pixoo, PixooConfig, Channel, TextScrollDirection
 from PIL import Image, ImageDraw, ImageFont
 
 app = Flask(__name__)
@@ -100,18 +100,33 @@ def connect():
     global pixoo
     data = request.json or {}
     ip = data.get('ip', '').strip()
+
     if not ip:
-        return jsonify({'success': False, 'message': 'Keine IP-Adresse angegeben'})
+        return jsonify({
+            'success': False,
+            'message': 'Keine IP-Adresse angegeben'
+        })
+
     try:
-        p = Pixoo(ip)
-        if not p.validate_connection():
-            return jsonify({'success': False, 'message': f'Keine Verbindung zu {ip}'})
+        config = PixooConfig(
+            address=ip,
+            size=64
+        )
+
+        p = Pixoo(config)
         pixoo = p
-        return jsonify({'success': True, 'message': f'Verbunden mit {ip}'})
+
+        return jsonify({
+            'success': True,
+            'message': f'Verbunden mit {ip}'
+        })
+
     except Exception as e:
         pixoo = None
-        return jsonify({'success': False, 'message': str(e)})
-
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        })
 
 @app.route('/api/send-text', methods=['POST'])
 def send_text():
