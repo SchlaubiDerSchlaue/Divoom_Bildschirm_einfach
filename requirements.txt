@@ -1,4 +1,4 @@
 Flask==3.0.0
-pixoo>=0.2.4
+pixoo==0.8.3
 Pillow>=9.0.0
 requests>=2.31.0
