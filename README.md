@@ -21,6 +21,28 @@ Eine Webanwendung zum Steuern des Divoom Pixoo64 LED-Displays, basierend auf der
 
 ## Installation
 
+### Mit Docker (empfohlen)
+
+```bash
+# Repository klonen
+git clone https://github.com/SchlaubiDerSchlaue/Divoom_Bildschirm_einfach.git
+cd Divoom_Bildschirm_einfach
+
+# Container bauen und starten
+docker build -t divoom-webapp .
+docker run -d -p 5000:5000 --name divoom divoom-webapp
+```
+
+**Umgebungsvariablen:**
+- `PORT` - Port des Webservers (Standard: 5000)
+
+Beispiel mit custom Port:
+```bash
+docker run -d -p 8080:8080 -e PORT=8080 --name divoom divoom-webapp
+```
+
+### Ohne Docker
+
 ```bash
 # Virtuelle Umgebung erstellen (empfohlen)
 python -m venv .venv
@@ -31,6 +53,22 @@ pip install -r requirements.txt
 ```
 
 ## Verwendung
+
+### Mit Docker
+
+Container ist bereits gestartet. Browser öffnen: [http://localhost:5000](http://localhost:5000)
+
+Logs ansehen:
+```bash
+docker logs divoom
+```
+
+Container stoppen:
+```bash
+docker stop divoom
+```
+
+### Ohne Docker
 
 ```bash
 python app.py
