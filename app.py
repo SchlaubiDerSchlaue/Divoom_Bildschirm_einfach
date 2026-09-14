@@ -7,11 +7,11 @@ from PIL import Image, ImageDraw, ImageFont
 
 app = Flask(__name__)
 
-# Verzeichnis für temporär gespeicherte GIF-Dateien (wird vom Pixoo per HTTP abgerufen)
-UPLOAD_DIR = os.path.join(os.path.dirname(__file__), 'static', 'uploads')
+# Umgebungsvariablen
+UPLOAD_DIR = os.getenv("UPLOAD_DIR", os.path.join(os.path.dirname(__file__), 'static', 'uploads'))
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-PORT = 5000
+PORT = int(os.getenv("PORT", "5000"))
 
 FONT_PATHS = [
     '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
