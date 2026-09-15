@@ -165,15 +165,24 @@ def send_text():
             def _do_scroll():
                 global animation_stop_flag
                 try:
-                    # Textbreite messen
+                    # Text in Zeilen aufteilen
+                    lines = text.split('\n')
+                    
+                    # Maximale Textbreite über alle Zeilen messen
                     tmp = Image.new('RGB', (1, 1))
                     draw_tmp = ImageDraw.Draw(tmp)
-                    bbox = draw_tmp.textbbox((0, 0), text, font=font)
-                    text_width = bbox[2] - bbox[0]
+                    max_width = 0
+                    for line in lines:
+                        bbox = draw_tmp.textbbox((0, 0), line, font=font)
+                        line_width = bbox[2] - bbox[0]
+                        max_width = max(max_width, line_width)
 
-                    total_distance = text_width + 64
+                    total_distance = max_width + 64
                     step = max(1, speed // 5)
                     delay = 0.05
+                    
+                    # Zeilenhöhe berechnen
+                    line_height = font_size + 2
 
                     # Endlos loopen, bis Flag gesetzt oder Verbindung getrennt
                     while not animation_stop_flag and pixoo is not None:
@@ -181,9 +190,15 @@ def send_text():
                             if animation_stop_flag or pixoo is None:
                                 break
                             frame = Image.new('RGB', (64, 64), bg)
-                            ImageDraw.Draw(frame).text(
-                                (64 - offset, y), text, fill=color, font=font
-                            )
+                            draw = ImageDraw.Draw(frame)
+                            
+                            # Jede Zeile rendern
+                            for i, line in enumerate(lines):
+                                line_y = y + (i * line_height)
+                                draw.text(
+                                    (64 - offset, line_y), line, fill=color, font=font
+                                )
+                            
                             pixoo.draw_image(frame)
                             pixoo.push()
                             time.sleep(delay)
@@ -192,9 +207,19 @@ def send_text():
 
             threading.Thread(target=_do_scroll, daemon=True).start()
         else:
-            # Statischer Text: letzte Vollfarbe als Hintergrund
+            # Statischer Text: mehrzeilig unterstützen
+            lines = text.split('\n')
             img = Image.new('RGB', (64, 64), last_fill_color)
-            ImageDraw.Draw(img).text((x, y), text, fill=color, font=font)
+            draw = ImageDraw.Draw(img)
+            
+            # Zeilenhöhe berechnen
+            line_height = font_size + 2
+            
+            # Jede Zeile rendern
+            for i, line in enumerate(lines):
+                line_y = y + (i * line_height)
+                draw.text((x, line_y), line, fill=color, font=font)
+            
             pixoo.draw_image(img)
             pixoo.push()
 
