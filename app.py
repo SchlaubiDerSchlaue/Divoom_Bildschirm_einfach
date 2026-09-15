@@ -284,7 +284,7 @@ def upload_image():
     try:
         img = Image.open(file.stream)
 
-        # --- Animiertes GIF: auf Disk speichern, Pixoo lädt es selbst per HTTP ---
+        # --- Animiertes GIF: Frames extrahieren und über Buffer abspielen ---
         if img.format == 'GIF':
             try:
                 img.seek(1)
@@ -294,16 +294,36 @@ def upload_image():
                 is_animated = False
 
             if is_animated:
-                gif_path = os.path.join(UPLOAD_DIR, 'anim.gif')
-                frame_count = _resize_and_save_gif(img, gif_path)
-                if frame_count == 0:
+                frames = []
+                durations = []
+                try:
+                    while True:
+                        frame = img.copy().convert('RGB').resize((64, 64), Image.LANCZOS)
+                        frames.append(frame)
+                        durations.append(img.info.get('duration', 100))
+                        img.seek(img.tell() + 1)
+                except EOFError:
+                    pass
+
+                if not frames:
                     return jsonify({'success': False, 'message': 'GIF enthält keine Frames'})
 
-                # Der Pixoo ruft die Datei selbst vom Flask-Server ab
-                lan_ip  = _get_lan_ip()
-                gif_url = f'http://{lan_ip}:{PORT}/static/uploads/anim.gif'
-                pixoo.play_net_gif(gif_url)
-                return jsonify({'success': True, 'message': f'GIF gesendet ({frame_count} Frames)'})
+                def _play_gif():
+                    try:
+                        # GIF endlos loopen, bis Verbindung getrennt wird
+                        while pixoo is not None:
+                            for i, frame in enumerate(frames):
+                                if pixoo is None:
+                                    break
+                                pixoo.draw_image(frame)
+                                pixoo.push()
+                                # duration ist in ms, sleep braucht Sekunden
+                                time.sleep(max(durations[i], 50) / 1000.0)
+                    except Exception:
+                        pass
+
+                threading.Thread(target=_play_gif, daemon=True).start()
+                return jsonify({'success': True, 'message': f'GIF wird abgespielt ({len(frames)} Frames)'})
 
         # --- Statisches Bild (JPEG oder nicht-animiertes GIF) ---
         img_rgb = img.convert('RGB').resize((64, 64), Image.LANCZOS)
