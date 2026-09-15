@@ -1,5 +1,7 @@
 import os
 import socket
+import threading
+import time
 
 from flask import Flask, render_template, request, jsonify
 from pixoo import Pixoo, PixooConfig, Channel, TextScrollDirection
@@ -30,6 +32,7 @@ CHANNELS = {
 }
 
 pixoo: Pixoo | None = None
+last_fill_color = (0, 0, 0)  # letzte Vollfarbe, wird bei Text als Hintergrund genutzt
 
 
 def _load_font(size: int):
@@ -147,19 +150,41 @@ def send_text():
     speed     = int(data.get('speed', 0))
 
     try:
+        font = _load_font(font_size)
+
         if speed > 0:
-            font_id = min(7, max(0, (font_size - 6) // 2))
-            pixoo.send_text(
-                text,
-                xy=(x, y),
-                color=color,
-                font=font_id,
-                movement_speed=speed,
-                direction=TextScrollDirection.LEFT,
-            )
+            # Scroll-Text: animierte Frames über den Buffer-Mechanismus
+            bg = last_fill_color
+
+            def _do_scroll():
+                try:
+                    # Textbreite messen
+                    tmp = Image.new('RGB', (1, 1))
+                    draw_tmp = ImageDraw.Draw(tmp)
+                    bbox = draw_tmp.textbbox((0, 0), text, font=font)
+                    text_width = bbox[2] - bbox[0]
+
+                    total_distance = text_width + 64
+                    step = max(1, speed // 5)
+                    delay = 0.05
+
+                    for offset in range(0, total_distance, step):
+                        if pixoo is None:
+                            break
+                        frame = Image.new('RGB', (64, 64), bg)
+                        ImageDraw.Draw(frame).text(
+                            (64 - offset, y), text, fill=color, font=font
+                        )
+                        pixoo.draw_image(frame)
+                        pixoo.push()
+                        time.sleep(delay)
+                except Exception:
+                    pass
+
+            threading.Thread(target=_do_scroll, daemon=True).start()
         else:
-            font = _load_font(font_size)
-            img  = Image.new('RGB', (64, 64), (0, 0, 0))
+            # Statischer Text: letzte Vollfarbe als Hintergrund
+            img = Image.new('RGB', (64, 64), last_fill_color)
             ImageDraw.Draw(img).text((x, y), text, fill=color, font=font)
             pixoo.draw_image(img)
             pixoo.push()
@@ -191,8 +216,10 @@ def fill_color():
     color_hex = data.get('color', '#000000').lstrip('#')
     r, g, b = (int(color_hex[i:i+2], 16) for i in (0, 2, 4))
     try:
+        global last_fill_color
         pixoo.fill_rgb(r, g, b)
         pixoo.push()
+        last_fill_color = (r, g, b)
         return jsonify({'success': True, 'message': 'Farbe gesetzt'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
