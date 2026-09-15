@@ -33,6 +33,7 @@ CHANNELS = {
 
 pixoo: Pixoo | None = None
 last_fill_color = (0, 0, 0)  # letzte Vollfarbe, wird bei Text als Hintergrund genutzt
+animation_stop_flag = False  # wird gesetzt, um laufende Animationen (GIF/Scroll) zu stoppen
 
 
 def _load_font(size: int):
@@ -150,13 +151,19 @@ def send_text():
     speed     = int(data.get('speed', 0))
 
     try:
+        global animation_stop_flag
+        animation_stop_flag = True  # laufende Animationen stoppen
+        time.sleep(0.1)  # kurz warten, damit Threads sich beenden können
+        animation_stop_flag = False
+
         font = _load_font(font_size)
 
         if speed > 0:
-            # Scroll-Text: animierte Frames über den Buffer-Mechanismus
+            # Scroll-Text: animierte Frames über den Buffer-Mechanismus, endlos loopen
             bg = last_fill_color
 
             def _do_scroll():
+                global animation_stop_flag
                 try:
                     # Textbreite messen
                     tmp = Image.new('RGB', (1, 1))
@@ -168,16 +175,18 @@ def send_text():
                     step = max(1, speed // 5)
                     delay = 0.05
 
-                    for offset in range(0, total_distance, step):
-                        if pixoo is None:
-                            break
-                        frame = Image.new('RGB', (64, 64), bg)
-                        ImageDraw.Draw(frame).text(
-                            (64 - offset, y), text, fill=color, font=font
-                        )
-                        pixoo.draw_image(frame)
-                        pixoo.push()
-                        time.sleep(delay)
+                    # Endlos loopen, bis Flag gesetzt oder Verbindung getrennt
+                    while not animation_stop_flag and pixoo is not None:
+                        for offset in range(0, total_distance, step):
+                            if animation_stop_flag or pixoo is None:
+                                break
+                            frame = Image.new('RGB', (64, 64), bg)
+                            ImageDraw.Draw(frame).text(
+                                (64 - offset, y), text, fill=color, font=font
+                            )
+                            pixoo.draw_image(frame)
+                            pixoo.push()
+                            time.sleep(delay)
                 except Exception:
                     pass
 
@@ -200,6 +209,11 @@ def clear():
     if err:
         return err
     try:
+        global animation_stop_flag
+        animation_stop_flag = True  # laufende Animationen stoppen
+        time.sleep(0.1)
+        animation_stop_flag = False
+
         pixoo.fill_rgb(0, 0, 0)
         pixoo.push()
         return jsonify({'success': True, 'message': 'Bildschirm gelöscht'})
@@ -216,7 +230,11 @@ def fill_color():
     color_hex = data.get('color', '#000000').lstrip('#')
     r, g, b = (int(color_hex[i:i+2], 16) for i in (0, 2, 4))
     try:
-        global last_fill_color
+        global last_fill_color, animation_stop_flag
+        animation_stop_flag = True  # laufende Animationen stoppen
+        time.sleep(0.1)
+        animation_stop_flag = False
+
         pixoo.fill_rgb(r, g, b)
         pixoo.push()
         last_fill_color = (r, g, b)
@@ -309,11 +327,12 @@ def upload_image():
                     return jsonify({'success': False, 'message': 'GIF enthält keine Frames'})
 
                 def _play_gif():
+                    global animation_stop_flag
                     try:
-                        # GIF endlos loopen, bis Verbindung getrennt wird
-                        while pixoo is not None:
+                        # GIF endlos loopen, bis Flag gesetzt oder Verbindung getrennt
+                        while not animation_stop_flag and pixoo is not None:
                             for i, frame in enumerate(frames):
-                                if pixoo is None:
+                                if animation_stop_flag or pixoo is None:
                                     break
                                 pixoo.draw_image(frame)
                                 pixoo.push()
